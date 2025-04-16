@@ -1,6 +1,7 @@
 package chatapp.springchat.config;
 
 import chatapp.springchat.model.ChatMessage;
+import chatapp.springchat.controller.ChatHistoryController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,9 @@ public class WebSocketEventListener {
 
     @Autowired
     private SimpMessageSendingOperations messagingTemplate;
+    
+    @Autowired
+    private ChatHistoryController chatHistoryController;
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {

@@ -50,4 +50,12 @@ public class UserService implements UserDetailsService {
     public boolean userExists(String username) {
         return userRepository.existsByUsername(username);
     }
+    
+    public String encodePassword(String rawPassword) {
+        return passwordEncoder.encode(rawPassword);
+    }
+    
+    public boolean verifyPassword(String rawPassword, String encodedPassword) {
+        return passwordEncoder.matches(rawPassword, encodedPassword);
+    }
 }

@@ -7,14 +7,34 @@ var messageForm = document.querySelector('#messageForm');
 var messageInput = document.querySelector('#message');
 var messageArea = document.querySelector('#messageArea');
 var connectingElement = document.querySelector('.connecting');
+var logoutButton = document.querySelector('#logoutbutton');
 
 var stompClient = null;
 var username = null;
+var chatHistory = []; // Store chat history
 
 var colors = [
     '#2196F3', '#32c787', '#00BCD4', '#ff5652',
     '#ffc107', '#ff85af', '#FF9800', '#39bbb0'
 ];
+
+// Load chat history from localStorage when the page loads
+function loadChatHistory() {
+    const savedHistory = localStorage.getItem('chatHistory');
+    if (savedHistory) {
+        chatHistory = JSON.parse(savedHistory);
+        
+        // Display saved messages
+        chatHistory.forEach(message => {
+            displayMessage(message);
+        });
+    }
+}
+
+// Save chat history to localStorage
+function saveChatHistory() {
+    localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+}
 
 function connect(event) {
     username = document.querySelector('#name').value.trim();
@@ -31,6 +51,29 @@ function connect(event) {
     event.preventDefault();
 }
 
+// Add this function to load chat history from server
+function loadServerChatHistory() {
+    fetch('/api/history')
+        .then(response => response.json())
+        .then(messages => {
+            // Clear existing messages first
+            chatHistory = messages;
+            
+            // Display messages
+            messageArea.innerHTML = '';
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+            
+            // Save to localStorage as backup
+            saveChatHistory();
+        })
+        .catch(error => {
+            console.error('Error loading chat history:', error);
+            // Fall back to localStorage if server request fails
+            loadChatHistory();
+        });
+}
 
 function onConnected() {
     // Subscribe to the Public Topic
@@ -40,17 +83,45 @@ function onConnected() {
     stompClient.send("/app/chat.addUser",
         {},
         JSON.stringify({sender: username, type: 'JOIN'})
-    )
+    );
 
     connectingElement.classList.add('hidden');
+    
+    // Load chat history from server after connecting
+    loadServerChatHistory();
 }
-
 
 function onError(error) {
     connectingElement.textContent = 'Could not connect to WebSocket server. Please refresh this page to try again!';
     connectingElement.style.color = 'red';
 }
 
+function logout() {
+    if (stompClient) {
+        // Send a leave message
+        stompClient.send("/app/chat.addUser",
+            {},
+            JSON.stringify({sender: username, type: 'LEAVE'})
+        );
+        
+        // Disconnect from WebSocket
+        stompClient.disconnect();
+        stompClient = null;
+    }
+    
+    // Save chat history before logout
+    saveChatHistory();
+    
+    // Show the username page again
+    chatPage.classList.add('hidden');
+    usernamePage.classList.remove('hidden');
+    
+    // Clear the username input
+    document.querySelector('#name').value = '';
+    
+    // Reset username
+    username = null;
+}
 
 function sendMessage(event) {
     var messageContent = messageInput.value.trim();
@@ -66,10 +137,7 @@ function sendMessage(event) {
     event.preventDefault();
 }
 
-
-function onMessageReceived(payload) {
-    var message = JSON.parse(payload.body);
-
+function displayMessage(message) {
     var messageElement = document.createElement('li');
 
     if(message.type === 'JOIN') {
@@ -104,6 +172,17 @@ function onMessageReceived(payload) {
     messageArea.scrollTop = messageArea.scrollHeight;
 }
 
+function onMessageReceived(payload) {
+    var message = JSON.parse(payload.body);
+    
+    // Add message to chat history (only store chat messages, not events)
+    if (message.type === 'CHAT') {
+        chatHistory.push(message);
+        saveChatHistory();
+    }
+    
+    displayMessage(message);
+}
 
 function getAvatarColor(messageSender) {
     var hash = 0;
@@ -114,5 +193,12 @@ function getAvatarColor(messageSender) {
     return colors[index];
 }
 
-usernameForm.addEventListener('submit', connect, true)
-messageForm.addEventListener('submit', sendMessage, true)
+// Event listeners
+usernameForm.addEventListener('submit', connect, true);
+messageForm.addEventListener('submit', sendMessage, true);
+logoutButton.addEventListener('click', logout, true);
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+    // We'll load chat history when connected to ensure proper ordering
+});
